@@ -436,10 +436,38 @@ int not_in_queue(char *VA){
 }
 
 void add_to_clock(char *VA){
+  if(!not_in_queue(VA))
+    return;
   struct proc *curproc = myproc();
+  cprintf("~~~~~~~~~~~~~~~ in add to clock ~~~~~~~~~~\n");
+  
   if (curproc->clock_len < CLOCKSIZE){
     curproc->clock[curproc->clock_len] = VA;
     curproc -> clock_len = curproc->clock_len + 1;
+    
+  } else {
+    
+    char* cur_va = curproc->clock[curproc->hand];
+    pde_t* mypd = curproc->pgdir;
+    int check = 0;
+    while (!check){
+      pte_t *pte = walkpgdir(mypd, cur_va, 0);
+      if(!(*pte & PTE_A)){
+        //evict
+        cprintf("~~~~~~~~~~~~~~~ WE FINNA FAIL ~~~~~~~~~~");
+        curproc -> clock[curproc->hand] = VA;
+        mencrypt(cur_va,1);
+        curproc->hand++;
+        check = 1;
+      } else {
+        *pte = *pte & ~PTE_A;
+        curproc->hand++;
+        cur_va = curproc->clock[(curproc->hand)%CLOCKSIZE];
+      }
+    }
+  }
+  for (int k=curproc->hand; k<curproc->hand + CLOCKSIZE; k++){
+    cprintf("=============QUEUE RN IS : %x\n", (uint)curproc->clock[k%CLOCKSIZE]);
   }
 }
 int mdecrypt(char *virtual_addr) {
@@ -493,6 +521,7 @@ int mencrypt(char *virtual_addr, int len) {
 
   virtual_addr = (char *)PGROUNDDOWN((uint)virtual_addr);
 
+  
   //error checking first. all or nothing.
   char * slider = virtual_addr;
   for (int i = 0; i < len; i++) { 
@@ -531,6 +560,7 @@ int mencrypt(char *virtual_addr, int len) {
       cprintf("p4Debug: translate failed!");
       return -1;
     }
+    *mypte = *mypte & ~PTE_A;
   }
 
   switchuvm(myproc());
@@ -538,7 +568,7 @@ int mencrypt(char *virtual_addr, int len) {
 }
 
 int getpgtable(struct pt_entry* pt_entries, int num, int wsetOnly) {
-  cprintf("p4Debug: getpgtable: %p, %d\n", pt_entries, num);
+  cprintf("p4Debug: table: %p, %d\n", pt_entries, num);
 
   struct proc *curproc = myproc();
   pde_t *pgdir = curproc->pgdir;
@@ -551,7 +581,7 @@ int getpgtable(struct pt_entry* pt_entries, int num, int wsetOnly) {
   int i = 0;
   for (;;uva -=PGSIZE)
   {
-    
+    cprintf("MARZOOQI======================\n");
     pte_t *pte = walkpgdir(pgdir, (const void *)uva, 0);
     if(wsetOnly && not_in_queue((char*)P2V(PTE_ADDR(*pte)))){
       if(uva == 0 || i == num){
@@ -561,7 +591,7 @@ int getpgtable(struct pt_entry* pt_entries, int num, int wsetOnly) {
     }
     if (!(*pte & PTE_U) || !(*pte & (PTE_P | PTE_E)))
       continue;
-
+    cprintf("points ==================\n");
     pt_entries[i].pdx = PDX(uva);
     pt_entries[i].ptx = PTX(uva);
     pt_entries[i].ppage = *pte >> PTXSHIFT;
@@ -570,6 +600,7 @@ int getpgtable(struct pt_entry* pt_entries, int num, int wsetOnly) {
     pt_entries[i].encrypted = (*pte & PTE_E) > 0;
     pt_entries[i].ref = (*pte & PTE_A) > 0;
     //PT_A flag needs to be modified as per clock algo.
+    cprintf("increment ==================\n");
     i ++;
     if (uva == 0 || i == num) break;
 
@@ -584,8 +615,14 @@ int dump_rawphymem(char *physical_addr, char * buffer) {
   *buffer = *buffer;
   cprintf("p4Debug: dump_rawphymem: %p, %p\n", physical_addr, buffer);
   int retval = copyout(myproc()->pgdir, (uint) buffer, (void *) PGROUNDDOWN((int)P2V(physical_addr)), PGSIZE);
-  if (retval)
+  
+  cprintf("\t\t\t\t\t\t\tIN DUMPRAWPHYMEM: \n");
+  
+  if (retval){
+    cprintf("==================== NOT VIBES");
     return -1;
+  }
+  cprintf("======================VIBES");
   return 0;
 }
 

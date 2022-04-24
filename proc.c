@@ -167,18 +167,25 @@ growproc(int n)
       return -1;
    
    
-    /*uint a;
-    a = PGROUNDUP(sz);
-    mencrypt((char*)a, a/PGSIZE);*/
+    uint a;
+    a = 0;
+    for (; a < sz + n; a += PGSIZE){
+      mencrypt((char*)a, 1);
+    }
 
-  int t = sz/PGSIZE;
+  /*int t = sz/PGSIZE;
   if (sz%PGSIZE)
     t++;
   mencrypt(0,t-2);
   mencrypt((char*)((t-1)*PGSIZE),1);
-
+*/
   } else if(n < 0){
-    if((sz = deallocuvm(curproc->pgdir, sz, sz + n)) == 0)
+    if((sz = deallocuvm(curproc->pgdir, sz, sz + n)) == 0){
+      for(int i = 0; i < CLOCKSIZE; i++){
+        if(!not_in_queue((char*)sz + i*PGSIZE))
+          curproc->clock[i] = 0;
+      }
+    }
       return -1;
   }
   curproc->sz = sz;

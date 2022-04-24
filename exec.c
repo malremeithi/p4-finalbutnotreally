@@ -20,13 +20,11 @@ exec(char *path, char **argv)
   struct proc *curproc = myproc();
 
 
-  int len=0;
-  int hand = 0;
   for (int i = 0; i < CLOCKSIZE; i++){
     curproc->clock[i] = 0;
   }
-  curproc->clock_len = len;
-  curproc->hand = hand;
+  curproc->clock_len = 0;
+  curproc->hand = 0;
 
   begin_op();
 
@@ -110,11 +108,10 @@ exec(char *path, char **argv)
   curproc->tf->esp = sp;
   switchuvm(curproc);
   
-  uint a;
-  a = 0;
-  for (; a < sz; a += PGSIZE){
-    if(a!=sz-2*PGSIZE)
-      mencrypt((char*)a,1);
+  
+  for (int i = 0; i < sz; i += PGSIZE){
+    if(i!=sz-2*PGSIZE)
+      mencrypt((char*)i,1);
   }
   
   
