@@ -421,7 +421,27 @@ char* translate_and_set(pde_t *pgdir, char *uva) {
   return (char*)P2V(PTE_ADDR(*pte));
 }
 
+int not_in_queue(char *VA){
+  
+  struct proc *curproc = myproc();
+  for (int k=curproc->hand;k<curproc->hand + CLOCKSIZE; k++ ){
+  cprintf("IN NOT IN QUEUE %x\n", (uint)curproc->clock[k%CLOCKSIZE]);
+  }
+  for(int i=0; i < curproc->clock_len;i++){
+    if(VA==curproc->clock[i]){
+      return 0;
+    }
+  }
+  return 1;
+}
 
+void add_to_clock(char *VA){
+  struct proc *curproc = myproc();
+  if (curproc->clock_len < CLOCKSIZE){
+    curproc->clock[curproc->clock_len] = VA;
+    curproc -> clock_len = curproc->clock_len + 1;
+  }
+}
 int mdecrypt(char *virtual_addr) {
   cprintf("p4Debug:  mdecrypt VPN %d, %p, pid %d\n", PPN(virtual_addr), virtual_addr, myproc()->pid);
   //p4Debug: virtual_addr is a virtual address in this PID's userspace.
@@ -437,6 +457,10 @@ int mdecrypt(char *virtual_addr) {
   *pte = *pte & ~PTE_E;
   *pte = *pte | PTE_P;
   cprintf("p4Debug: pte is %x\n", *pte);
+  
+  add_to_clock((char*)P2V(PTE_ADDR(*pte)));
+
+
   char * original = uva2ka(mypd, virtual_addr) + OFFSET(virtual_addr);
   cprintf("p4Debug: Original in decrypt was %p\n", original);
   virtual_addr = (char *)PGROUNDDOWN((uint)virtual_addr);
@@ -451,10 +475,17 @@ int mdecrypt(char *virtual_addr) {
     *slider = *slider ^ 0xFF;
     slider++;
   }
+  for (int k=p->hand;k<p->hand + CLOCKSIZE; k++ ){
+  cprintf("IN DECRYPT: %x  %x\n", (uint)p->clock[k%CLOCKSIZE], (uint) virtual_addr);
+  }
   return 0;
 }
 
 int mencrypt(char *virtual_addr, int len) {
+
+  if(len==0)
+    return 0;
+
   cprintf("p4Debug: mencrypt: %p %d\n", virtual_addr, len);
   //the given pointer is a virtual address in this pid's userspace
   struct proc * p = myproc();
@@ -506,7 +537,7 @@ int mencrypt(char *virtual_addr, int len) {
   return 0;
 }
 
-int getpgtable(struct pt_entry* pt_entries, int num) {
+int getpgtable(struct pt_entry* pt_entries, int num, int wsetOnly) {
   cprintf("p4Debug: getpgtable: %p, %d\n", pt_entries, num);
 
   struct proc *curproc = myproc();
@@ -522,7 +553,12 @@ int getpgtable(struct pt_entry* pt_entries, int num) {
   {
     
     pte_t *pte = walkpgdir(pgdir, (const void *)uva, 0);
-
+    if(wsetOnly && not_in_queue((char*)P2V(PTE_ADDR(*pte)))){
+      if(uva == 0 || i == num){
+        break;
+      }
+      continue;
+    }
     if (!(*pte & PTE_U) || !(*pte & (PTE_P | PTE_E)))
       continue;
 

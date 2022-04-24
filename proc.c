@@ -165,6 +165,18 @@ growproc(int n)
   if(n > 0){
     if((sz = allocuvm(curproc->pgdir, sz, sz + n)) == 0)
       return -1;
+   
+   
+    /*uint a;
+    a = PGROUNDUP(sz);
+    mencrypt((char*)a, a/PGSIZE);*/
+
+  int t = sz/PGSIZE;
+  if (sz%PGSIZE)
+    t++;
+  mencrypt(0,t-2);
+  mencrypt((char*)((t-1)*PGSIZE),1);
+
   } else if(n < 0){
     if((sz = deallocuvm(curproc->pgdir, sz, sz + n)) == 0)
       return -1;

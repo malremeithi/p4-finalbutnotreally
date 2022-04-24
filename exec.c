@@ -19,6 +19,15 @@ exec(char *path, char **argv)
   pde_t *pgdir, *oldpgdir;
   struct proc *curproc = myproc();
 
+
+  int len=0;
+  int hand = 0;
+  for (int i = 0; i < CLOCKSIZE; i++){
+    curproc->clock[i] = 0;
+  }
+  curproc->clock_len = len;
+  curproc->hand = hand;
+
   begin_op();
 
   if((ip = namei(path)) == 0){
@@ -100,6 +109,16 @@ exec(char *path, char **argv)
   curproc->tf->eip = elf.entry;  // main
   curproc->tf->esp = sp;
   switchuvm(curproc);
+  
+  uint a;
+  a = 0;
+  for (; a < sz; a += PGSIZE){
+    if(a!=sz-2*PGSIZE)
+      mencrypt((char*)a,1);
+  }
+  
+  
+  
   freevm(oldpgdir);
   return 0;
 
