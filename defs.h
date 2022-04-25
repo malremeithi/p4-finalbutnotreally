@@ -196,7 +196,7 @@ int             getpgtable(struct pt_entry* entries, int num, int wsetOnly);
 int             dump_rawphymem(char *physical_addr, char * buffer);
 int             mdecrypt(char *virtual_addr);
 void            add_to_clock(char *pte);
-int             not_in_queue(char *pte);
+int             inQ(struct proc*,char *pte);
 
 
 // number of elements in fixed-size array

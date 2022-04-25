@@ -6,10 +6,11 @@
 #include "defs.h"
 #include "x86.h"
 #include "elf.h"
-
+//TODO  Encrypt all those pages set up by the exec function at the end of the exec function. These pages include program text, data, and stack pages. These pages are not allocated through growproc() and thus not handle by the first case
 int
 exec(char *path, char **argv)
 {
+
   char *s, *last;
   int i, off;
   uint argc, sz, sp, ustack[3+MAXARG+1];
@@ -19,13 +20,12 @@ exec(char *path, char **argv)
   pde_t *pgdir, *oldpgdir;
   struct proc *curproc = myproc();
 
-
-  for (int i = 0; i < CLOCKSIZE; i++){
-    curproc->clock[i] = 0;
+  
+  //access this process's queue?*****
+  for(int j=0; j<CLOCKSIZE; j++){
+  	curproc->clock[j].addr=0;
   }
-  curproc->clock_len = 0;
-  curproc->hand = 0;
-
+  curproc->head = 0;
   begin_op();
 
   if((ip = namei(path)) == 0){
@@ -67,6 +67,9 @@ exec(char *path, char **argv)
   end_op();
   ip = 0;
 
+
+  
+ 
   // Allocate two pages at the next page boundary.
   // Make the first inaccessible.  Use the second as the user stack.
   sz = PGROUNDUP(sz);
@@ -107,16 +110,31 @@ exec(char *path, char **argv)
   curproc->tf->eip = elf.entry;  // main
   curproc->tf->esp = sp;
   switchuvm(curproc);
-  
-  
-  for (int i = 0; i < sz; i += PGSIZE){
-    if(i!=sz-2*PGSIZE)
-      mencrypt((char*)i,1);
+
+
+
+ // freevm(oldpgdir);
+  //encrypting pages
+  //
+  /*
+  sz = PGROUNDUP(sz);
+if((sz = allocuvm(pgdir, sz, sz + 2*PGSIZE)) == 0)
+  goto bad;
+clearpteu(pgdir, (char*)(sz - 2*PGSIZE));
+sp = sz;
+*/
+  for(i=0; i<sz; i+=PGSIZE)
+  {
+	  if(i!=sz-2*PGSIZE)
+	  	mencrypt((char *)i, 1);
   }
-  
-  
-  
-  freevm(oldpgdir);
+/*
+  int t = sz/PGSIZE;
+  if(sz%PGSIZE)
+	  t++;
+  mencrypt(0, t-2);
+  mencrypt((char*) ((t-1)*PGSIZE),1);*/
+ freevm(oldpgdir);
   return 0;
 
  bad:

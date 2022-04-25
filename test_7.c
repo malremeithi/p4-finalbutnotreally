@@ -65,6 +65,7 @@ int main(void) {
     int retval = getpgtable(pt_entries, heap_pages_num, 0);
     //printf("=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~ retval is: %d\n",retval);
     printf(1,"trying my best here yuvraj\n");
+
     if (retval == heap_pages_num) {
       for (int i = 0; i < retval; i++) {
           
@@ -76,7 +77,7 @@ int main(void) {
               pt_entries[i].encrypted,
               pt_entries[i].ref
           ); 
-          
+          //printf(1, "-=-=-=-=-=-=-=-=---=--=-=-=--==--=-= entries printed");
           uint expected = 0xAA;
           if (pt_entries[i].encrypted)
             expected = ~0xAA;

@@ -1,3 +1,5 @@
+#include "param.h"
+
 // Per-CPU state
 struct cpu {
   uchar apicid;                // Local APIC ID
@@ -34,6 +36,12 @@ struct context {
 
 enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
+typedef struct Node {
+    char* addr;
+    int ref;
+} Node;
+
+
 // Per-process state
 struct proc {
   uint sz;                     // Size of process memory (bytes)
@@ -48,10 +56,10 @@ struct proc {
   int killed;                  // If non-zero, have been killed
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
-  char name[16];               // Process name (debugging)
-  char* clock[CLOCKSIZE];
-  int hand;
-  int clock_len;
+  char name[16]; 
+  //pte_t*  clock[CLOCKSIZE];
+  struct Node clock[CLOCKSIZE];
+  int head;  // Process name (debugging)
 };
 
 // Process memory is laid out contiguously, low addresses first:

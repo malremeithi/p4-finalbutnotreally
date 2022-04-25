@@ -6,6 +6,7 @@
 #include "mmu.h"
 #include "proc.h"
 #include "elf.h"
+#include <stddef.h>
 
 extern char data[];  // defined by kernel.ld
 pde_t *kpgdir;  // for use in scheduler()
@@ -416,60 +417,97 @@ char* translate_and_set(pde_t *pgdir, char *uva) {
   //p4Debug: Set Page as encrypted and not present so that we can trap(see trap.c) to decrypt page
   cprintf("p4Debug: PTE was %x and its pointer %p\n", *pte, pte);
   *pte = *pte | PTE_E;
-  *pte = *pte & ~PTE_P;
+  *pte =* pte & ~PTE_P;
+ //
+ *pte = *pte & ~PTE_A;
   cprintf("p4Debug: PTE is now %x\n", *pte);
   return (char*)P2V(PTE_ADDR(*pte));
 }
+int inQ(struct  proc * p, char* virt){
+        //cprintf("you called inQ, %x\n",(uint) virt);
+        int myhead = p->head%CLOCKSIZE;
+	 for(int i=myhead; i<myhead+CLOCKSIZE; i++)
+	 {
+		//cprintf("%d\n", myhead);
+		//cprintf("%d\n", CLOCKSIZE);
+	char* check = p->clock[i%CLOCKSIZE].addr;
+		//cprintf(" CHECK %x\n", check);
+               //cprintf("--------%x\n",(uint)virt);
 
-int not_in_queue(char *VA){
-  
-  struct proc *curproc = myproc();
-  for (int k=curproc->hand;k<curproc->hand + CLOCKSIZE; k++ ){
-  cprintf("IN NOT IN QUEUE %x\n", (uint)curproc->clock[k%CLOCKSIZE]);
-  }
-  for(int i=0; i < curproc->clock_len;i++){
-    if(VA==curproc->clock[i]){
-      return 0;
-    }
-  }
-  return 1;
+		if(check==virt)
+                {
+                       // cprintf("and they are equal\n");
+			return i%CLOCKSIZE; 
+                }
+	 } 
+
+	 return -1;
 }
 
-void add_to_clock(char *VA){
-  if(!not_in_queue(VA))
-    return;
-  struct proc *curproc = myproc();
-  cprintf("~~~~~~~~~~~~~~~ in add to clock ~~~~~~~~~~\n");
-  
-  if (curproc->clock_len < CLOCKSIZE){
-    curproc->clock[curproc->clock_len] = VA;
-    curproc -> clock_len = curproc->clock_len + 1;
-    
-  } else {
-    
-    char* cur_va = curproc->clock[curproc->hand];
-    pde_t* mypd = curproc->pgdir;
-    int check = 0;
-    while (!check){
-      pte_t *pte = walkpgdir(mypd, cur_va, 0);
-      if(!(*pte & PTE_A)){
-        //evict
-        cprintf("~~~~~~~~~~~~~~~ WE FINNA FAIL ~~~~~~~~~~");
-        curproc -> clock[curproc->hand] = VA;
-        mencrypt(cur_va,1);
-        curproc->hand++;
-        check = 1;
-      } else {
-        *pte = *pte & ~PTE_A;
-        curproc->hand++;
-        cur_va = curproc->clock[(curproc->hand)%CLOCKSIZE];
-      }
-    }
+
+
+int addClock(struct proc * p, char *va)
+{
+
+        pde_t* mypd = p->pgdir;
+       //pte_t * pte = walkpgdir(mypd, va, 0);
+        int head = p->head;
+	//int tail = (head-1+CLOCKSIZE)%CLOCKSIZE;
+	//for (int i=tail; i)
+
+
+
+        for(int i=head+CLOCKSIZE; i>head; i--)
+        {
+        if(p->clock[(i)%CLOCKSIZE].addr==0){
+         	 p->clock[(i)%CLOCKSIZE].addr =(char*)PGROUNDDOWN((uint)va); //(char*)P2V(PTE_ADDR(*pte));  // pte;
+               //p->head++;
+	      p->head = (i+1)%CLOCKSIZE;
+	                     cprintf("=========change head 4%d\n", i%CLOCKSIZE);
+
+	       	return 0;
+        }
+        }
+
+ cprintf("-----------      trying to evictBEFORE \n");
+
+        //if no empty spaces
+         char* cur_va = p->clock[head].addr;
+         int found =0;
+         while(!found){
+               pte_t * pte = walkpgdir(mypd, cur_va, 0);
+           //if pte_b's acces bit is 0 
+               if(!(*pte & PTE_A)){
+               //evict
+	       cprintf("-----------      trying to evict %x\n", (uint)cur_va);
+  //       //make sure pte's access bit is set to 1 
+  //       //encrypt pte_b
+cprintf("----------------------MEMECRYPT   %d\n",  mencrypt(cur_va,1));//not sure
+
+	     //  cprintf("CURVA MENCRYPT\n");
+	       p->clock[head].addr = va;
+               *pte = *pte | PTE_E;
+	 *pte = *pte & ~PTE_P;       
+               p->head += 1;
+	       p->head = p->head%CLOCKSIZE;
+	       found =1;
+          }
+  //     //else //acces bit is 1//
+          else{
+  //       //set acces bit to 0 
+          *pte = *pte & ~PTE_A;
+           p->head += 1;
+          cur_va = p->clock[head%CLOCKSIZE].addr;
+          }
   }
-  for (int k=curproc->hand; k<curproc->hand + CLOCKSIZE; k++){
-    cprintf("=============QUEUE RN IS : %x\n", (uint)curproc->clock[k%CLOCKSIZE]);
-  }
+
+
+        return 0;
 }
+
+
+
+
 int mdecrypt(char *virtual_addr) {
   cprintf("p4Debug:  mdecrypt VPN %d, %p, pid %d\n", PPN(virtual_addr), virtual_addr, myproc()->pid);
   //p4Debug: virtual_addr is a virtual address in this PID's userspace.
@@ -477,22 +515,59 @@ int mdecrypt(char *virtual_addr) {
   pde_t* mypd = p->pgdir;
   //set the present bit to true and encrypt bit to false
   pte_t * pte = walkpgdir(mypd, virtual_addr, 0);
+
   if (!pte || *pte == 0) {
     cprintf("p4Debug: walkpgdir failed\n");
     return -1;
   }
+  
+  //CHECK IF QUEUE IS FULL
+  int i=0;
+  int k = 0;
+  int empty = 0;
+  for (int i = p->head; k < CLOCKSIZE; k++,i++){
+    if(p->clock[i + k%CLOCKSIZE].ref){
+      empty = 1;
+      break;
+    }
+  }
+  
+  if (!empty){
+    if(p->clock[i%CLOCKSIZE].addr == NULL){
+      p->clock[i%CLOCKSIZE].addr = (char*)PGROUNDDOWN((uint)virtual_addr);
+      p->clock[i%CLOCKSIZE].ref = 1;
+    }
+  } else {
+      int i = p->head;
+      pte_t *pte_updated = walkpgdir(p->pgdir, p->clock[i].addr,0);
+      while(*pte_updated & PTE_A){
+        *pte_updated = *pte_updated & ~PTE_A;
+        i+=1;
+        pte_updated = walkpgdir(p->pgdir, p->clock[i%CLOCKSIZE].addr,0);
+      }
+      mencrypt(p->clock[i].addr,1);
+      p->clock[i].addr = (char*)PGROUNDDOWN((uint)virtual_addr);
+      p->head=(i+1)%CLOCKSIZE;
+
+  }
+
   cprintf("p4Debug: pte was %x\n", *pte);
   *pte = *pte & ~PTE_E;
   *pte = *pte | PTE_P;
   cprintf("p4Debug: pte is %x\n", *pte);
-  
-  add_to_clock((char*)P2V(PTE_ADDR(*pte)));
-
-
   char * original = uva2ka(mypd, virtual_addr) + OFFSET(virtual_addr);
   cprintf("p4Debug: Original in decrypt was %p\n", original);
   virtual_addr = (char *)PGROUNDDOWN((uint)virtual_addr);
-  cprintf("p4Debug: mdecrypt: rounded down va is %p\n", virtual_addr);
+  cprintf("pDebug: mdecrypt: rounded down va is %p\n", virtual_addr);
+
+//char * VA = (char*)P2V(PTE_ADDR(*pte));
+//add to clock
+//  if(inQ(p, (char*)virtual_addr)==-1)
+//	  addClock(p, (char*)virtual_addr);
+
+
+  for(int k=p->head; k<p->head + CLOCKSIZE; k++)
+              cprintf("BEFORE OUT CYCLE: %x\n", (uint)p->clock[k%CLOCKSIZE].addr);
 
   char * kvp = uva2ka(mypd, virtual_addr);
   if (!kvp || *kvp == 0) {
@@ -503,25 +578,26 @@ int mdecrypt(char *virtual_addr) {
     *slider = *slider ^ 0xFF;
     slider++;
   }
-  for (int k=p->hand;k<p->hand + CLOCKSIZE; k++ ){
-  cprintf("IN DECRYPT: %x  %x\n", (uint)p->clock[k%CLOCKSIZE], (uint) virtual_addr);
-  }
+
+//	for(int k=p->head; k<p->head + CLOCKSIZE; k++) 
+//		cprintf("OUT CYCLE: %x\n", (uint)p->clock[k%CLOCKSIZE]);
   return 0;
-}
+
+ }
+
 
 int mencrypt(char *virtual_addr, int len) {
-
-  if(len==0)
-    return 0;
-
   cprintf("p4Debug: mencrypt: %p %d\n", virtual_addr, len);
   //the given pointer is a virtual address in this pid's userspace
   struct proc * p = myproc();
   pde_t* mypd = p->pgdir;
-
-  virtual_addr = (char *)PGROUNDDOWN((uint)virtual_addr);
-
   
+  
+
+  //if we encrypt, we kick a page out of the queue --
+  //find a page, check it actually is in queue, set it to 0
+ virtual_addr = (char *)PGROUNDDOWN((uint)virtual_addr);
+
   //error checking first. all or nothing.
   char * slider = virtual_addr;
   for (int i = 0; i < len; i++) { 
@@ -547,7 +623,7 @@ int mencrypt(char *virtual_addr, int len) {
     pte_t * mypte = walkpgdir(mypd, slider, 0);
     cprintf("p4Debug: pte is %x\n", *mypte);
     if (*mypte & PTE_E) {
-      cprintf("p4Debug: already encrypted\n");
+     cprintf("p4Debug: already encrypted\n");
       slider += PGSIZE;
       continue;
     }
@@ -560,16 +636,25 @@ int mencrypt(char *virtual_addr, int len) {
       cprintf("p4Debug: translate failed!");
       return -1;
     }
-    *mypte = *mypte & ~PTE_A;
+   *mypte = *mypte & ~PTE_A;  
+return 0;
   }
 
+int ind = inQ(p, virtual_addr);
+if(ind!=-1)
+{
+        p->clock[ind].addr=0;
+	//p->head  = (ind+1)%CLOCKSIZE;
+               cprintf("=========change head 3\n");
+
+}
+
   switchuvm(myproc());
-  return 0;
+  return 0; 
 }
 
 int getpgtable(struct pt_entry* pt_entries, int num, int wsetOnly) {
-  cprintf("p4Debug: table: %p, %d\n", pt_entries, num);
-
+	cprintf("p4Debug: getpgtable: %p, %d\n", pt_entries, num);
   struct proc *curproc = myproc();
   pde_t *pgdir = curproc->pgdir;
   uint uva = 0;
@@ -577,35 +662,37 @@ int getpgtable(struct pt_entry* pt_entries, int num, int wsetOnly) {
     uva = curproc->sz - PGSIZE;
   else 
     uva = PGROUNDDOWN(curproc->sz);
-
   int i = 0;
+
   for (;;uva -=PGSIZE)
   {
-    cprintf("MARZOOQI======================\n");
+    cprintf("THIS IS UVA %x\n",uva);
     pte_t *pte = walkpgdir(pgdir, (const void *)uva, 0);
-    if(wsetOnly && not_in_queue((char*)P2V(PTE_ADDR(*pte)))){
-      if(uva == 0 || i == num){
-        break;
-      }
-      continue;
+
+	  char* check =(char *) uva;
+    if(wsetOnly && inQ(curproc, check)==-1)
+    { 
+	    cprintf("p4Debug: this page is: %x",(uint)check);
+    	    num++;
+	    continue;
     }
     if (!(*pte & PTE_U) || !(*pte & (PTE_P | PTE_E)))
       continue;
-    cprintf("points ==================\n");
+
     pt_entries[i].pdx = PDX(uva);
     pt_entries[i].ptx = PTX(uva);
     pt_entries[i].ppage = *pte >> PTXSHIFT;
     pt_entries[i].present = *pte & PTE_P;
     pt_entries[i].writable = (*pte & PTE_W) > 0;
     pt_entries[i].encrypted = (*pte & PTE_E) > 0;
+//*pte = (*pte & PTE_A);
     pt_entries[i].ref = (*pte & PTE_A) > 0;
     //PT_A flag needs to be modified as per clock algo.
-    cprintf("increment ==================\n");
     i ++;
-    if (uva == 0 || i == num) break;
+    if (uva == 0 || i == num) { cprintf("get page table i = %d\n", i); break;}
 
   }
-
+  
   return i;
 
 }
@@ -615,14 +702,8 @@ int dump_rawphymem(char *physical_addr, char * buffer) {
   *buffer = *buffer;
   cprintf("p4Debug: dump_rawphymem: %p, %p\n", physical_addr, buffer);
   int retval = copyout(myproc()->pgdir, (uint) buffer, (void *) PGROUNDDOWN((int)P2V(physical_addr)), PGSIZE);
-  
-  cprintf("\t\t\t\t\t\t\tIN DUMPRAWPHYMEM: \n");
-  
-  if (retval){
-    cprintf("==================== NOT VIBES");
+  if (retval)
     return -1;
-  }
-  cprintf("======================VIBES");
   return 0;
 }
 
@@ -633,4 +714,3 @@ int dump_rawphymem(char *physical_addr, char * buffer) {
 // Blank page.
 //PAGEBREAK!
 // Blank page.
-

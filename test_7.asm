@@ -308,6 +308,7 @@ int main(void) {
  2de:	6a 01                	push   $0x1
  2e0:	e8 b0 05 00 00       	call   895 <printf>
  2e5:	83 c4 10             	add    $0x10,%esp
+
     if (retval == heap_pages_num) {
  2e8:	8b 45 98             	mov    -0x68(%ebp),%eax
  2eb:	3b 45 a0             	cmp    -0x60(%ebp),%eax
@@ -368,7 +369,7 @@ int main(void) {
  369:	e8 27 05 00 00       	call   895 <printf>
  36e:	83 c4 20             	add    $0x20,%esp
           ); 
-          
+          //printf(1, "-=-=-=-=-=-=-=-=---=--=-=-=--==--=-= entries printed");
           uint expected = 0xAA;
  371:	c7 45 e0 aa 00 00 00 	movl   $0xaa,-0x20(%ebp)
           if (pt_entries[i].encrypted)

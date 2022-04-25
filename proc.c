@@ -142,7 +142,7 @@ userinit(void)
   safestrcpy(p->name, "initcode", sizeof(p->name));
   p->cwd = namei("/");
 
-  // this assignment to p->state lets other cores
+  // this assignpent to p->state lets other cores
   // run this process. the acquire forces the above
   // writes to be visible, and the lock is also needed
   // because the assignment might not be atomic.
@@ -153,6 +153,9 @@ userinit(void)
   release(&ptable.lock);
 }
 
+
+//TODO: Encrypt all the newly-allocated heap pages in growproc(). These pages are allocated by the user through syscall sbrk() which will call growproc().
+//
 // Grow current process's memory by n bytes.
 // Return 0 on success, -1 on failure.
 int
@@ -165,28 +168,32 @@ growproc(int n)
   if(n > 0){
     if((sz = allocuvm(curproc->pgdir, sz, sz + n)) == 0)
       return -1;
-   
-   
     uint a;
-    a = 0;
-    for (; a < sz + n; a += PGSIZE){
+    a = curproc->sz;
+    if (n%PGSIZE)
+      n = PGROUNDUP(n);
+    for ( ; a<curproc->sz+n; a+=PGSIZE){
       mencrypt((char*)a, 1);
     }
+ // int t = (sz)/PGSIZE;
+ // if((sz)%PGSIZE)
+ //         t++;
+ // mencrypt(0, t-2);
+ // mencrypt((char*) ((t-1)*PGSIZE),1);
+ // mencrypt((char*) ((t)*PGSIZE),n/PGSIZE);
 
-  /*int t = sz/PGSIZE;
-  if (sz%PGSIZE)
-    t++;
-  mencrypt(0,t-2);
-  mencrypt((char*)((t-1)*PGSIZE),1);
-*/
+
   } else if(n < 0){
-    if((sz = deallocuvm(curproc->pgdir, sz, sz + n)) == 0){
-      for(int i = 0; i < CLOCKSIZE; i++){
-        if(!not_in_queue((char*)sz + i*PGSIZE))
-          curproc->clock[i] = 0;
-      }
-    }
-      return -1;
+    if((sz = deallocuvm(curproc->pgdir, sz, sz + n)) == 0)
+    {
+	    for(int i=0; i<n; i++)
+	    {
+		    int ind = inQ(curproc, (char* )(sz + i*PGSIZE));
+	    	    if(ind!=-1)
+		    {curproc->clock[ind].addr=0;
+		    	    cprintf("==========change head ??\n");}
+	    }
+	    return -1;}
   }
   curproc->sz = sz;
   switchuvm(curproc);
