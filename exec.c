@@ -6,11 +6,12 @@
 #include "defs.h"
 #include "x86.h"
 #include "elf.h"
+#include <stddef.h>
+
 //TODO  Encrypt all those pages set up by the exec function at the end of the exec function. These pages include program text, data, and stack pages. These pages are not allocated through growproc() and thus not handle by the first case
 int
 exec(char *path, char **argv)
 {
-
   char *s, *last;
   int i, off;
   uint argc, sz, sp, ustack[3+MAXARG+1];
@@ -22,9 +23,9 @@ exec(char *path, char **argv)
 
   
   //access this process's queue?*****
-  for(int j=0; j<CLOCKSIZE; j++){
-  	curproc->clock[j].addr=0;
-  }
+//  for(int j=0; j<CLOCKSIZE; j++){
+  //	curproc->clock[j]=0;
+ // }
   curproc->head = 0;
   begin_op();
 
@@ -123,17 +124,31 @@ if((sz = allocuvm(pgdir, sz, sz + 2*PGSIZE)) == 0)
 clearpteu(pgdir, (char*)(sz - 2*PGSIZE));
 sp = sz;
 */
-  for(i=0; i<sz; i+=PGSIZE)
-  {
-	  if(i!=sz-2*PGSIZE)
-	  	mencrypt((char *)i, 1);
+    for(int j=0; j<CLOCKSIZE; j++){
+        curproc->clock[j]=NULL;
   }
+  curproc->head = 0;
 /*
+ int pgs_to_encrypt = sz / PGSIZE;
+  if(sz % PGSIZE)
+    pgs_to_encrypt += 1;
+  
+  mencrypt(0, pgs_to_encrypt - 2);
+  mencrypt((char*)((pgs_to_encrypt - 1) * PGSIZE), 1);
+*/
+
+//  for(i=0; i<sz; i+=PGSIZE)
+ // {
+//	  if(i!=sz-2*PGSIZE)
+//	  	mencrypt((char *)i, 1);
+  //}
+
+
   int t = sz/PGSIZE;
   if(sz%PGSIZE)
 	  t++;
   mencrypt(0, t-2);
-  mencrypt((char*) ((t-1)*PGSIZE),1);*/
+  mencrypt((char*) ((t-1)*PGSIZE),1);
  freevm(oldpgdir);
   return 0;
 

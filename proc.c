@@ -6,7 +6,10 @@
 #include "x86.h"
 #include "proc.h"
 #include "spinlock.h"
+#include <stddef.h>
 
+
+//ванин код
 struct {
   struct spinlock lock;
   struct proc proc[NPROC];
@@ -165,16 +168,23 @@ growproc(int n)
   struct proc *curproc = myproc();
 
   sz = curproc->sz;
+
+ //  uint sz_copy = sz;
   if(n > 0){
     if((sz = allocuvm(curproc->pgdir, sz, sz + n)) == 0)
       return -1;
     uint a;
     a = curproc->sz;
-    if (n%PGSIZE)
+    if (n % PGSIZE)
       n = PGROUNDUP(n);
     for ( ; a<curproc->sz+n; a+=PGSIZE){
-      mencrypt((char*)a, 1);
+    	mencrypt((char*)a, 1);
     }
+    
+    //if (n % PGSIZE) 
+      //n = PGROUNDUP(n);
+   // mencrypt((char*)sz_copy, n/PGSIZE);
+    
  // int t = (sz)/PGSIZE;
  // if((sz)%PGSIZE)
  //         t++;
@@ -186,14 +196,26 @@ growproc(int n)
   } else if(n < 0){
     if((sz = deallocuvm(curproc->pgdir, sz, sz + n)) == 0)
     {
-	    for(int i=0; i<n; i++)
-	    {
-		    int ind = inQ(curproc, (char* )(sz + i*PGSIZE));
-	    	    if(ind!=-1)
-		    {curproc->clock[ind].addr=0;
-		    	    cprintf("==========change head ??\n");}
-	    }
+	    //for(int i=0; i<n; i++)
+	   // {
+	//	    int ind = inQ(curproc, (char* )(sz + i*PGSIZE));
+	  //  	    if(ind!=-1)
+	//	    {curproc->clock[ind]=0;
+	  //  }
 	    return -1;}
+ 	
+///ванин код
+/* int k = 0;
+    pte_t *pte;
+    for (int i = curproc->head; k < CLOCKSIZE; i++, k++) {
+     * pte = walkpgdir(curproc->pgdir, curproc->clock[i], 0);
+      if (*pte == 0) {
+        mencrypt(curproc->clock[i], 1);
+	curproc->head = i;
+	*pte = *pte & ~PTE_A;
+        //curproc->clock[i].ref = 0;
+      }
+*/
   }
   curproc->sz = sz;
   switchuvm(curproc);
@@ -225,6 +247,21 @@ fork(void)
   np->sz = curproc->sz;
   np->parent = curproc;
   *np->tf = *curproc->tf;
+
+
+
+  for(int i=0; i<CLOCKSIZE; i++){
+  np->clock[i] = NULL;}
+  np->head = curproc->head;
+  
+  for(int i=np->head; i<np->head+CLOCKSIZE; i++)
+  {
+	  if(curproc->clock[i%CLOCKSIZE]!=NULL){
+		  //char * check = curproc->clock[i%CLOCKSIZE];
+		  //& PTE_A)>0)
+		  np->clock[i%CLOCKSIZE] = curproc->clock[i%CLOCKSIZE];
+ 		 }
+  }
 
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;

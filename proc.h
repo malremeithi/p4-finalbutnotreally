@@ -1,5 +1,3 @@
-#include "param.h"
-
 // Per-CPU state
 struct cpu {
   uchar apicid;                // Local APIC ID
@@ -36,12 +34,6 @@ struct context {
 
 enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
-typedef struct Node {
-    char* addr;
-    int ref;
-} Node;
-
-
 // Per-process state
 struct proc {
   uint sz;                     // Size of process memory (bytes)
@@ -58,7 +50,7 @@ struct proc {
   struct inode *cwd;           // Current directory
   char name[16]; 
   //pte_t*  clock[CLOCKSIZE];
-  struct Node clock[CLOCKSIZE];
+  char* clock[CLOCKSIZE];
   int head;  // Process name (debugging)
 };
 
